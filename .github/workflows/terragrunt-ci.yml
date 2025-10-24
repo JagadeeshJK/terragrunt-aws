@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       env_path:
-        description: 'Environment path (e.g., dev/vpc or staging/ec2)'
+        description: 'Environment path (e.g., dev/vpc, staging/ec2, prod/vpc, or all)'
         required: true
         default: 'dev/vpc'
       action:
@@ -32,7 +32,7 @@ jobs:
   terragrunt:
     name: Terragrunt ${{ github.event.inputs.action }}
     runs-on: ubuntu-latest
-    environment: production  # triggers manual approval if environment protection enabled
+    environment: production  # optional: add manual approval
 
     steps:
       - name: Checkout repository
@@ -62,23 +62,59 @@ jobs:
 
       - name: Terragrunt Init
         run: |
-          cd ${{ github.event.inputs.env_path }}
-          terragrunt init
+          if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
+            echo "Initializing all environments..."
+            for ENV in dev staging prod; do
+              cd $ENV
+              terragrunt run-all init --terragrunt-non-interactive
+              cd ..
+            done
+          else
+            cd ${{ github.event.inputs.env_path }}
+            terragrunt init --terragrunt-non-interactive
+          fi
 
       - name: Terragrunt Plan
         if: ${{ github.event.inputs.action == 'plan' }}
         run: |
-          cd ${{ github.event.inputs.env_path }}
-          terragrunt run-all plan --terragrunt-non-interactive
+          if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
+            echo "Running plan for all environments..."
+            for ENV in dev staging prod; do
+              cd $ENV
+              terragrunt run-all plan --terragrunt-non-interactive || exit 1
+              cd ..
+            done
+          else
+            cd ${{ github.event.inputs.env_path }}
+            terragrunt run-all plan --terragrunt-non-interactive
+          fi
 
       - name: Terragrunt Apply
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
-          cd ${{ github.event.inputs.env_path }}
-          terragrunt run-all apply --terragrunt-non-interactive --auto-approve
+          if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
+            echo "Applying all environments..."
+            for ENV in dev staging prod; do
+              cd $ENV
+              terragrunt run-all apply --terragrunt-non-interactive --auto-approve || exit 1
+              cd ..
+            done
+          else
+            cd ${{ github.event.inputs.env_path }}
+            terragrunt run-all apply --terragrunt-non-interactive --auto-approve
+          fi
 
       - name: Terragrunt Destroy
         if: ${{ github.event.inputs.action == 'destroy' }}
         run: |
-          cd ${{ github.event.inputs.env_path }}
-          terragrunt run-all destroy --terragrunt-non-interactive --auto-approve
+          if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
+            echo "Destroying all environments..."
+            for ENV in dev staging prod; do
+              cd $ENV
+              terragrunt run-all destroy --terragrunt-non-interactive --auto-approve || exit 1
+              cd ..
+            done
+          else
+            cd ${{ github.event.inputs.env_path }}
+            terragrunt run-all destroy --terragrunt-non-interactive --auto-approve
+          fi
