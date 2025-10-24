@@ -7,7 +7,7 @@ dependency "vpc" {
 }
 
 terraform {
-  source = "git::https://github.com/JagadeeshJK/iac-with-terraform-aws/tree/main/modules/ec2"
+  source = "git::https://github.com/JagadeeshJK/iac-with-terraform-aws.git//modules/ec2"
 }
 
 inputs = {
