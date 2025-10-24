@@ -1,0 +1,84 @@
+name: 'Terragrunt Infra Deployment'
+
+on:
+  workflow_dispatch:
+    inputs:
+      env_path:
+        description: 'Environment path (e.g., dev/vpc or staging/ec2)'
+        required: true
+        default: 'dev/vpc'
+      action:
+        type: choice
+        description: 'Terragrunt Action to Perform'
+        options:
+          - plan
+          - apply
+          - destroy
+        required: true
+        default: 'plan'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  TG_VERSION: v0.67.4
+  TF_VERSION: 1.9.8
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  terragrunt:
+    name: Terragrunt ${{ github.event.inputs.action }}
+    runs-on: ubuntu-latest
+    environment: production  # triggers manual approval if environment protection enabled
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Install Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/${{ env.TG_VERSION }}/terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+          sudo chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Format Check
+        run: terragrunt hclfmt
+
+      - name: Terragrunt Init
+        run: |
+          cd ${{ github.event.inputs.env_path }}
+          terragrunt init
+
+      - name: Terragrunt Plan
+        if: ${{ github.event.inputs.action == 'plan' }}
+        run: |
+          cd ${{ github.event.inputs.env_path }}
+          terragrunt run-all plan --terragrunt-non-interactive
+
+      - name: Terragrunt Apply
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: |
+          cd ${{ github.event.inputs.env_path }}
+          terragrunt run-all apply --terragrunt-non-interactive --auto-approve
+
+      - name: Terragrunt Destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: |
+          cd ${{ github.event.inputs.env_path }}
+          terragrunt run-all destroy --terragrunt-non-interactive --auto-approve
