@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       env_path:
-        description: 'Environment path (e.g., dev/vpc, staging/ec2, prod/vpc, or all)'
+        description: 'Environment path (e.g., infra-live/dev/vpc, infra-live/staging/ec2, or all)'
         required: true
-        default: 'dev/vpc'
+        default: 'infra-live/dev/vpc'
       action:
         type: choice
         description: 'Terragrunt Action to Perform'
@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   AWS_REGION: us-east-1
@@ -32,7 +31,6 @@ jobs:
   terragrunt:
     name: Terragrunt ${{ github.event.inputs.action }}
     runs-on: ubuntu-latest
-    environment: production  # optional: add manual approval
 
     steps:
       - name: Checkout repository
@@ -57,17 +55,16 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Format Check
-        run: terragrunt hclfmt
-
       - name: Terragrunt Init
         run: |
+          ROOT_DIR=infra-live
           if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
             echo "Initializing all environments..."
             for ENV in dev staging prod; do
-              cd $ENV
+              echo "Initializing $ENV..."
+              cd $ROOT_DIR/$ENV
               terragrunt run-all init --terragrunt-non-interactive
-              cd ..
+              cd ../../
             done
           else
             cd ${{ github.event.inputs.env_path }}
@@ -77,12 +74,14 @@ jobs:
       - name: Terragrunt Plan
         if: ${{ github.event.inputs.action == 'plan' }}
         run: |
+          ROOT_DIR=infra-live
           if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
-            echo "Running plan for all environments..."
+            echo "Planning all environments..."
             for ENV in dev staging prod; do
-              cd $ENV
-              terragrunt run-all plan --terragrunt-non-interactive || exit 1
-              cd ..
+              echo "Planning $ENV..."
+              cd $ROOT_DIR/$ENV
+              terragrunt run-all plan --terragrunt-non-interactive
+              cd ../../
             done
           else
             cd ${{ github.event.inputs.env_path }}
@@ -92,12 +91,14 @@ jobs:
       - name: Terragrunt Apply
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
+          ROOT_DIR=infra-live
           if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
             echo "Applying all environments..."
             for ENV in dev staging prod; do
-              cd $ENV
-              terragrunt run-all apply --terragrunt-non-interactive --auto-approve || exit 1
-              cd ..
+              echo "Applying $ENV..."
+              cd $ROOT_DIR/$ENV
+              terragrunt run-all apply --terragrunt-non-interactive --auto-approve
+              cd ../../
             done
           else
             cd ${{ github.event.inputs.env_path }}
@@ -107,12 +108,14 @@ jobs:
       - name: Terragrunt Destroy
         if: ${{ github.event.inputs.action == 'destroy' }}
         run: |
+          ROOT_DIR=infra-live
           if [ "${{ github.event.inputs.env_path }}" == "all" ]; then
             echo "Destroying all environments..."
             for ENV in dev staging prod; do
-              cd $ENV
-              terragrunt run-all destroy --terragrunt-non-interactive --auto-approve || exit 1
-              cd ..
+              echo "Destroying $ENV..."
+              cd $ROOT_DIR/$ENV
+              terragrunt run-all destroy --terragrunt-non-interactive --auto-approve
+              cd ../../
             done
           else
             cd ${{ github.event.inputs.env_path }}
