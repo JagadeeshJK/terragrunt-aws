@@ -3,7 +3,7 @@ include {
 }
 
 terraform {
-  source = "git::https://github.com/JagadeeshJK/iac-with-terraform-aws/tree/main/modules/vpc"
+  source = "git::https://github.com/JagadeeshJK/iac-with-terraform-aws.git//modules/vpc"
 }
 
 inputs = {
